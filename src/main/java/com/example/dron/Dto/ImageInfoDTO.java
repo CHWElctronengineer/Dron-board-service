@@ -31,4 +31,17 @@ public class ImageInfoDTO {
      * 이 정보는 클라이언트가 데이터를 어떻게 처리할지 결정하는 데 사용될 수 있습니다.
      */
     private String fileType;
+
+
+    /**
+     * 이미지가 촬영된 위치 식별자 (1~6)
+     * DroneImage 엔티티에 새로 추가된 필드입니다.
+     */
+    private Integer location_id;
+
+    /**
+     * 이미지가 속한 공정 식별자
+     * DroneImage 엔티티에 새로 추가된 필드입니다.
+     */
+    private String process_id;
 }

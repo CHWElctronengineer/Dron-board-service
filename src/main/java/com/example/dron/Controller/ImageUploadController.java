@@ -26,84 +26,72 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ImageUploadController {
 
-    // 이미지 업로드 및 삭제와 같은 비즈니스 로직을 처리하는 서비스
     private final ImageUploadService imageUploadService;
-    // 데이터베이스와 직접 상호작용하여 데이터를 조회하는 리포지토리
-    // 일반적으로 컨트롤러는 서비스만 호출하지만, 간단한 조회의 경우 리포지토리를 직접 사용할 수도 있습니다.
     private final DroneImageRepository droneImageRepository;
 
     /**
-     * 새로운 이미지를 업로드(생성)하는 API입니다. (HTTP POST)
-     * @param file 클라이언트로부터 전송된 이미지 파일 (multipart/form-data 형식)
+     * 새로운 이미지를 업로드(생성)하는 API입니다.
+     * @param file 이미지 파일 (multipart/form-data)
+     * @param locationId 위치 ID
+     * @param processId 공정 ID
      * @return 성공 시 생성된 이미지의 ID와 HTTP 201 Created 상태를 반환합니다.
      */
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadImage(@RequestParam("file") MultipartFile file) {
+    // ✅ @RequestParam을 사용하여 locationId와 processId를 추가로 받습니다.
+    public ResponseEntity<?> uploadImage(@RequestParam("file") MultipartFile file,
+                                         @RequestParam("locationId") Integer locationId,
+                                         @RequestParam("processId") String processId) {
         try {
-            DroneImage savedImage = imageUploadService.store(file);
-            // 성공 응답으로 이미지의 id만 반환해주는 것이 깔끔합니다.
+            // ✅ 수정한 서비스 메서드에 모든 파라미터를 전달합니다.
+            DroneImage savedImage = imageUploadService.store(file, locationId, processId);
             return ResponseEntity.status(HttpStatus.CREATED).body("업로드 성공! 이미지 ID: " + savedImage.getId());
         } catch (IOException e) {
             e.printStackTrace();
-            // 파일 처리 중 오류 발생 시 500 에러를 반환합니다.
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("파일 업로드 실패: " + e.getMessage());
         }
     }
 
     /**
-     * ID를 이용해 특정 이미지의 실제 파일 데이터를 조회하는 API입니다. (HTTP GET)
-     * @param id 조회할 이미지의 고유 ID (URL 경로 변수)
-     * @return 이미지의 바이너리 데이터(byte[])와 Content-Type 헤더를 포함하는 응답
+     * ID를 이용해 특정 이미지의 실제 파일 데이터를 조회하는 API입니다. (변경 없음)
      */
     @GetMapping("/{id}")
     public ResponseEntity<byte[]> getImage(@PathVariable Long id) {
-        // 1. DB에서 ID를 기반으로 이미지 정보를 찾습니다. 없으면 null을 반환합니다.
         DroneImage image = droneImageRepository.findById(id).orElse(null);
 
-        // 2. 이미지가 존재하지 않거나, 이미지 데이터 또는 파일 타입 정보가 없으면 404 Not Found 에러를 보냅니다.
         if (image == null || image.getImageData() == null || image.getFileType() == null) {
             return ResponseEntity.notFound().build();
         }
 
-        // 디버깅용 로그: 응답을 보내기 직전의 Content-Type을 콘솔에 출력합니다.
-        MediaType mediaType = MediaType.valueOf(image.getFileType());
-        System.out.println(">>> [드론 서버] 응답 직전 Content-Type: " + mediaType);
-
-        // 3. 응답 헤더에 정확한 이미지 타입(Content-Type)을 설정하고,
-        //    응답 본문(body)에 이미지의 실제 바이트 데이터를 담아 클라이언트에 전송합니다.
         return ResponseEntity.ok()
-                .contentType(mediaType)
+                .contentType(MediaType.valueOf(image.getFileType()))
                 .body(image.getImageData());
     }
 
     /**
-     * 업로드된 모든 이미지의 정보 목록을 조회하는 API입니다. (HTTP GET)
-     * @return 이미지 정보(ID, 파일명 등)가 담긴 DTO 객체 리스트
+     * 업로드된 모든 이미지의 정보 목록을 조회하는 API입니다.
+     * @return 이미지 정보 DTO 리스트 (location_id, process_id 포함)
      */
     @GetMapping
     public ResponseEntity<List<ImageInfoDTO>> getAllImages() {
-        // DB에서 모든 이미지 엔티티를 조회합니다.
         List<ImageInfoDTO> images = droneImageRepository.findAll().stream()
-                // 전체 이미지 데이터를 보내면 매우 비효율적이므로,
-                // ID, 파일명 등 가벼운 정보만 담은 DTO로 변환하여 반환합니다.
                 .map(image -> new ImageInfoDTO(
                         image.getId(),
                         image.getOriginalFilename(),
-                        image.getFileType()
+                        image.getFileType(),
+                        // ✅ DTO 생성자에 새로 추가한 필드 값을 전달합니다.
+                        image.getLocation_id(),
+                        image.getProcess_id()
                 ))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(images);
     }
 
     /**
-     * ID를 이용해 특정 이미지를 삭제하는 API입니다. (HTTP DELETE)
-     * @param id 삭제할 이미지의 고유 ID
-     * @return 성공적으로 삭제되었음을 의미하는 204 No Content 상태 응답
+     * ID를 이용해 특정 이미지를 삭제하는 API입니다. (변경 없음)
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteImage(@PathVariable Long id) {
         imageUploadService.deleteImage(id);
-        // 리소스가 성공적으로 삭제되었지만, 별도의 응답 본문은 없음을 알립니다.
         return ResponseEntity.noContent().build();
     }
 }

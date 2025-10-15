@@ -48,4 +48,10 @@ public class DroneImage {
      */
     @CreationTimestamp // Hibernate: 엔티티가 생성될 때의 타임스탬프를 자동으로 기록합니다.
     private LocalDateTime createdAt;
+
+    @Column(name = "location_id")
+    private Integer location_id;
+
+    @Column(name = "process_id", length = 20)
+    private String process_id;
 }
